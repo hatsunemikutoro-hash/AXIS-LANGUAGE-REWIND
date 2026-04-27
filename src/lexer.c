@@ -82,7 +82,7 @@ static Tokenkind lookup_keyword(const char *text) {
     int num_keywords = sizeof(keywords) / sizeof(keywords[0]); // calcula quantas keywords a gente tem
     for (int i = 0; i < num_keywords; i++)
     {
-        if (strcmp(text, keywords[i].name)) { // compara com cada nome da lista
+        if (strcmp(text, keywords[i].name) == 0) { // compara com cada nome da lista
             return keywords[i].kind; // e retorna a kind dele
         }
     }
@@ -109,7 +109,7 @@ static Token read_number(Lexer *l) {
         l->i++;
     }
     int len = l->i - start; // calcula o tamanho
-    return make_token(TOKEN_IDENT, l->src + start, len, l->line); // gera token
+    return make_token(TOKEN_NUMBER, l->src + start, len, l->line); // gera token
 }
 
 static Token read_string(Lexer *l) {
@@ -138,27 +138,33 @@ static Token read_string(Lexer *l) {
 }
 
 Token next_token(Lexer *l) {
-    skip_whitespace(l); // limpa bonitinho
+    skip_whitespace(l); // pula espaço em branco
+    char c = l->src[l->i]; // pega o primeiro character
 
-    char c = l->src[l->i]; // ja pega o character
+    if (c == '\0') { // se for o fim do arquivo
+        Token t = make_token(TOKEN_EOF, "EOF", 3, l->line);
+        printf("[LEXER] kind=%d val='%s'\n", t.kind, t.value);
+        return t;
+    }
 
-    if (c == '\0') return make_token(TOKEN_EOF, "EOF", 3, l->line);
-
-    if (c == '$') {
-        skip_comment(l);
+    if (c == '$') { // se for comentario
+        skip_comment(l); // pula o comentario e vai pro proximo token
         return next_token(l);
     }
 
-    if(isalpha(c) || c == '_') return read_ident(l); // le se é uma variavel digito sei la
-    if(isdigit(c)) return read_number(l); // le numeros
-    if((c) == '"') return read_string(l); // le strings
-    
-    switch (c) // esse ai lida com os brackets
-    {
-    case '[': l->i++; return make_token(TOKEN_LBRACKET, "[", 1, l->line);
-    case ']': l->i++; return make_token(TOKEN_RBRACKET, "]", 1, l->line);
+    Token t;
+    if(isalpha(c) || c == '_') t = read_ident(l);
+    else if(isdigit(c)) t = read_number(l);
+    else if(c == '"') t = read_string(l);
+    else switch (c) {
+        case '[': l->i++; t = make_token(TOKEN_LBRACKET, "[", 1, l->line); break;
+        case ']': l->i++; t = make_token(TOKEN_RBRACKET, "]", 1, l->line); break;
+        default: t = make_token(TOKEN_UNKNOW, &c, 1, l->line);
     }
 
-    return make_token(TOKEN_UNKNOW, &c, 1, l->line); // se chegou até aqui é pq lasco tudo minha vida
+    printf("[LEXER] kind=%d val='%s'\n", t.kind, t.value);
+    return t;
 }
+
+
 

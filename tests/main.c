@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 int main() {
-    const char *codigo_teste = "PRINT 10";
+    const char *codigo_teste = "ADD X 10";
 
     Lexer l;
     l.src = codigo_teste;

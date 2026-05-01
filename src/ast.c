@@ -32,7 +32,9 @@ void debug_print_ast(ASTNode* node, int level) {
         printf("OP: %d\n", node->op_kind);
     } else if (node->kind == NODE_PROGRAM) {
         printf("PROGRAM_BLOCK\n");
-    }
+    } else if (node->kind == NODE_IDENT) {
+    printf("IDENT: %s\n", node->data.string_val);
+}
 
     debug_print_ast(node->left, level + 1);
     debug_print_ast(node->right, level + 1);

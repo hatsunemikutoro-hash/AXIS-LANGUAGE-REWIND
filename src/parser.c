@@ -70,22 +70,184 @@ ASTNode* parse_expression(Lexer *l, Token *current_token) {
 
 // a esse ponto eu ja estou insano se nao fosse a ia me explicar tudo igual se eu fosse um jumento :D
 
+// TODO FUNCAO PARA CADA UM
+ASTNode* parse_print(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_PRINT);
+    eat(l, current_token, TOKEN_PRINT);
+    node->right = parse_factor(l, current_token);
+    return node;
+}
+
+ASTNode* parse_var(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_VAR_DECL);
+    eat(l, current_token, TOKEN_VAR);
+    node->left = parse_factor(l, current_token);
+    if (current_token->kind == TOKEN_NUMBER || current_token->kind == TOKEN_IDENT) {
+        node->right = parse_factor(l, current_token);
+    }
+    return node;
+}
+
+ASTNode* parse_exit(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_EXIT);
+    eat(l, current_token, TOKEN_EXIT);
+    return node;
+}
+
+ASTNode* parse_add(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_ARITHMETIC);
+        
+    eat(l, current_token, TOKEN_ADD);
+
+    node->left = parse_factor(l, current_token); // ele vai adicionar como 1 argumento
+    node->op_kind = TOKEN_ADD; // !!!!!! TEM QUE MUDAR O OP KIND!!!!!
+    if (current_token->kind == TOKEN_NUMBER || current_token->kind == TOKEN_IDENT) {
+        node->right = parse_factor(l, current_token); // adiciona como segundo 10
+    }
+
+    return node;
+}
+
+ASTNode* parse_sub(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_ARITHMETIC);
+        
+    eat(l, current_token, TOKEN_SUB);
+
+    node->left = parse_factor(l, current_token); // ele vai adicionar como 1 argumento
+    node->op_kind = TOKEN_SUB; // !!!!!! TEM QUE MUDAR O OP KIND!!!!!
+    if (current_token->kind == TOKEN_NUMBER || current_token->kind == TOKEN_IDENT) {
+        node->right = parse_factor(l, current_token); // adiciona como segundo 10
+    }
+
+    return node;
+}
+
+ASTNode* parse_inc(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_INC);
+    eat(l, current_token, TOKEN_INC);
+    node->left = parse_factor(l, current_token);
+    return node;
+}
+
+ASTNode* parse_dec(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_DEC);
+    eat(l, current_token, TOKEN_DEC);
+    node->left = parse_factor(l, current_token);
+    return node;
+}
+
+ASTNode* parse_debug(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_DEBUG);
+    eat(l, current_token, TOKEN_DEBUG);
+    return node;
+}
+
+ASTNode* parse_nodebug(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_NODEBUG);
+    eat(l, current_token, TOKEN_NODEBUG);
+    return node;
+}
+
+ASTNode* parse_mark(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_MARK);
+    eat(l, current_token, TOKEN_MARK);
+    node->left = parse_factor(l, current_token);
+    return node;
+}
+
+ASTNode* parse_jump(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_JUMP);
+    eat(l, current_token, TOKEN_JUMP);
+    node->left = parse_factor(l, current_token);
+    return node;
+}
+
+ASTNode* parse_if(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_IF);
+    eat(l, current_token, TOKEN_IF);
+    node->left = parse_factor(l, current_token);
+    node->right = parse_factor(l, current_token);
+    return node;
+}
+
+ASTNode* parse_eq(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_EQ);
+    eat(l, current_token, TOKEN_EQ);
+    node->left = parse_factor(l, current_token);
+    node->right = parse_factor(l, current_token);
+    return node;
+}
+
+ASTNode* parse_lt(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_LT);
+    eat(l, current_token, TOKEN_LT);
+    node->left = parse_factor(l, current_token);
+    node->right = parse_factor(l, current_token);
+    return node;
+}
+
+ASTNode* parse_gt(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_GT);
+    eat(l, current_token, TOKEN_GT);
+    node->left = parse_factor(l, current_token);
+    node->right = parse_factor(l, current_token);
+    return node;
+}
+
+ASTNode* parse_read(Lexer *l, Token *current_token) {
+    ASTNode* node = create_node(NODE_READ);
+    eat(l, current_token, TOKEN_READ);
+    node->left = parse_factor(l, current_token); // variavel onde guarda o input
+    return node;
+}
+
+
 // parse statement LETS FUCKING GO BITCHES
 
 ASTNode* parse_statement(Lexer *l, Token *current_token) {
     printf("[DEBUG] TOKEN_PRINT vale: %d\n", TOKEN_PRINT);
     printf("[DEBUG] current kind vale: %d\n", current_token->kind);
-    if (current_token->kind == TOKEN_PRINT) { // verifica se a kind (tipo) é igual ao token print
-        ASTNode* node = create_node(NODE_PRINT); // cria um node dele
+    /*===== OS BASICOS =====*/
 
-        eat(l, current_token, TOKEN_PRINT); // come ele (la eli huhuhuhu)
+    if      (current_token->kind == TOKEN_PRINT) return parse_print(l, current_token);
+    else if (current_token->kind == TOKEN_VAR)   return parse_var(l, current_token);
+    else if (current_token->kind == TOKEN_EXIT)   return parse_exit(l, current_token);
 
-        node->right = parse_expression(l, current_token); // avança pra proxima uma variavel um numero fodase
 
-        return node;
-    }
+    /*===== OPERACOES ARITMETICA =====*/
+    else if (current_token->kind == TOKEN_ADD)   return parse_add(l, current_token);
+    else if (current_token->kind == TOKEN_SUB)   return parse_sub(l, current_token);
+
+    else if (current_token->kind == TOKEN_INC)   return parse_inc(l, current_token);
+
+    else if (current_token->kind == TOKEN_DEC)   return parse_dec(l, current_token);
+
+    // ===== system =====
+    else if (current_token->kind == TOKEN_DEBUG) return parse_debug(l, current_token);
+
+    else if (current_token->kind == TOKEN_NODEBUG) return parse_nodebug(l, current_token);
+
+    // LABELS
+    else if (current_token->kind == TOKEN_MARK) return parse_mark(l, current_token);
+
+    else if (current_token->kind == TOKEN_JUMP) return parse_jump(l, current_token);
+
+    // CONDITIONS
+    else if (current_token->kind == TOKEN_IF) return parse_if(l, current_token);
     
-    // por agora vamos dar esse erro so por finalidades de debug
+    else if (current_token->kind == TOKEN_EQ) return parse_eq(l, current_token);
+
+    else if (current_token->kind == TOKEN_LT) return parse_lt(l, current_token);
+
+    else if (current_token->kind == TOKEN_GT) return parse_gt(l, current_token);
+
+    // I/O
+
+    else if (current_token->kind == TOKEN_READ) return parse_read(l, current_token);
+        
+    // ! tem mais pra fazer so que eu vou deixar pra depois
+    // ! por limitações que eu to sem saco pra fazer
+    // ! por agora vamos dar esse erro so por finalidades de debug
     fprintf(stderr, "Comando nao reconhecido no parse statement\n");
     exit(1);
 }

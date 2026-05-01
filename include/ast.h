@@ -9,6 +9,8 @@ typedef enum {
 
     // OPERAÇÕES (Agrupei para facilitar o switch no interpreter)
     NODE_ARITHMETIC, // Para ADD, SUB, INC, DEC, CLEAR
+    NODE_INC,
+    NODE_DEC,
     NODE_VAR_DECL,   // Para LET, VAR
     NODE_ASSIGN,     // Para quando você atribui valor
 
@@ -16,13 +18,18 @@ typedef enum {
     NODE_MARK,       // Labels
     NODE_JUMP,
     NODE_IF,
-    NODE_COMPARE,    // Para EQ, LT, GT
+    NODE_EQ, 
+    NODE_GT, 
+    NODE_LT, 
 
     // I/O E SYS
     NODE_READ,
     NODE_PRINT,
     NODE_EXIT,
     NODE_SYSTEM,     // DEBUG, NODEBUG, LOAD
+    NODE_LOAD,
+    NODE_DEBUG,
+    NODE_NODEBUG,
 
     // FUNÇÕES
     NODE_FUNC_DEF,

@@ -21,7 +21,6 @@ static const Keyword keywords[] = {
     {"CLEAR", TOKEN_CLEAR},
     {"ADD", TOKEN_ADD},
     {"SUB", TOKEN_SUB},
-    {"LET", TOKEN_LET},
     {"VAR", TOKEN_VAR},
     {"MARK", TOKEN_MARK},
     {"JUMP", TOKEN_JUMP},

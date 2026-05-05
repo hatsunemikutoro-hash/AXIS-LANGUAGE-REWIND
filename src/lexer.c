@@ -4,166 +4,135 @@
 #include <string.h>
 #include <ctype.h>
 
-
-
-// Keywords -- metodo de nao fritar meu cerebro
-
-typedef struct
-{
-    const char *name;
-    Tokenkind kind;
-}Keyword;
+typedef struct {
+    const char *name; // nome da Keyword
+    Tokenkind kind; // tipo dela
+} Keyword;
 
 static const Keyword keywords[] = {
-    {"PRINT", TOKEN_PRINT},
-    {"INC", TOKEN_INC},
-    {"DEC", TOKEN_DEC},
-    {"CLEAR", TOKEN_CLEAR},
-    {"ADD", TOKEN_ADD},
-    {"SUB", TOKEN_SUB},
-    {"VAR", TOKEN_VAR},
-    {"MARK", TOKEN_MARK},
-    {"JUMP", TOKEN_JUMP},
-    {"IF", TOKEN_IF},
-    {"EQ", TOKEN_EQ},
-    {"LT", TOKEN_LT},
-    {"GT", TOKEN_GT},
-    {"READ", TOKEN_READ},
-    {"DEF", TOKEN_DEF},
-    {"END", TOKEN_END},
-    {"CALL", TOKEN_CALL},
-    {"RETURN", TOKEN_RETURN},
-    {"LOAD", TOKEN_LOAD},
-    {"EXIT", TOKEN_EXIT},
-    {"DEBUG", TOKEN_DEBUG},
-    {"NODEBUG", TOKEN_NODEBUG},
+    {"function", TOKEN_FUNCTION},
+    {"end",      TOKEN_END},
+    {"return",   TOKEN_RETURN},
+    {"if",       TOKEN_IF},
+    {"call",     TOKEN_CALL},
+    {"store",    TOKEN_STORE},
+    {"print",    TOKEN_PRINT},
+    {"add",      TOKEN_ADD},
+    {"sub",      TOKEN_SUB},
+    {"mul",      TOKEN_MUL},
+    {"div",      TOKEN_DIV},
 };
 
-// funcoes auxiliares
 static Token make_token(Tokenkind kind, const char *val, int len, int line) {
-    Token t;
-    t.kind = kind;
-    t.line = line;
-    t.value = malloc(len + 1);
-    if (t.value == NULL) {
-        fprintf(stderr,"Erro: Falha ao alocar memória para o token na linha %d\n", line);
-        exit(1); // Para o programa imediatamente
+    Token t; // cria o token t
+    t.kind  = kind; // define o kind
+    t.line  = line; // define a line
+    t.value = malloc(len + 1); // alloca memoria pra ele
+    if (!t.value) { // se nao tiver é pq falhou a alocacao
+        fprintf(stderr, "Erro: falha ao alocar token na linha %d\n", line);
+        exit(1);
     }
-    memcpy(t.value, val,  len);
-    t.value[len] = '\0';
-    return t;
+    memcpy(t.value, val, len); // especificar o intervalo de caracteres q num pode ser excedido pela memoria origem
+    t.value[len] = '\0'; // adiciona um null term no final
+    return t; // retorna o token
 }
 
-// meu cerebro doi
 static void skip_whitespace(Lexer *l) {
-    // enquanto o caractere for nulo, ou um espaço, ou for uma quebra de linha
-    while (l->src[l->i] == '\n' || l->src[l->i] == ' ' || l->src[l->i] == '\t')
-    {
-        if (l->src[l->i] == '\n') { // se for uma quebra de linha aumenta a linha
-            l->line ++;
-        }
-        l->i++; // avança pra proxima letra
-    }
+    while (l->src[l->i] == ' ' || l->src[l->i] == '\t') // enquanto o atual  char é igual a um espaço ou a uma sequencia de escape (tab)
+        l->i++; // continua indo
 }
 
 static void skip_comment(Lexer *l) {
-    if (l->src[l->i] == '$') {
-        l->i++;
-        while (l->src[l->i] != '\0' && l->src[l->i] != '\n')
-        {
-            l->i++;
-        }
-        
+    if (l->src[l->i] == ';') { // se achar um comentario
+        while (l->src[l->i] != '\0' && l->src[l->i] != '\n') // enquanto nao for o final do arquivo e nao for uma nova linha
+            l->i++; // continua
     }
 }
 
 static Tokenkind lookup_keyword(const char *text) {
-    int num_keywords = sizeof(keywords) / sizeof(keywords[0]); // calcula quantas keywords a gente tem
-    for (int i = 0; i < num_keywords; i++)
-    {
-        if (strcmp(text, keywords[i].name) == 0) { // compara com cada nome da lista
-            return keywords[i].kind; // e retorna a kind dele
-        }
-    }
-    return TOKEN_IDENT; // se nao for nenhuma keyword é variavel do usuario
-
+    int n = sizeof(keywords) / sizeof(keywords[0]); // tamanho do numero de keywords dividido pelo tamanho da primeira keyword?
+    for (int i = 0; i < n; i++)
+        if (strcmp(text, keywords[i].name) == 0) // se o texto for igual a algum da lista de keys retorna o tipo dele se nao retorna ident
+            return keywords[i].kind;
+    return TOKEN_IDENT;
 }
 
 static Token read_ident(Lexer *l) {
-    int start = l->i; // pega o começo 
-    while (isalnum(l->src[l->i])) // verfica se é alpha nbumerico e incrementa
-    {
-        l->i++;
-    }
-    int len = l->i - start; // calcula o tamanho
-    Token t = make_token(TOKEN_IDENT, l->src + start, len, l->line); // gera token
-    t.kind = lookup_keyword(t.value);
-    return t;
+    int start = l->i; // começa onde o index atual esta
+    while (isalnum((unsigned char)l->src[l->i]) || l->src[l->i] == '_') // enquanto for um numerico ou alfabetico ou _
+        l->i++; // continua
+    int len = l->i - start; //  a distancia entre o index e o começo de onde ele estava
+    Token t = make_token(TOKEN_IDENT, l->src + start, len, l->line); // faz o token
+    t.kind = lookup_keyword(t.value);// procura ele na keyword
+    return t; // retorna token
 }
 
 static Token read_number(Lexer *l) {
-    int start = l->i; // pega o começo 
-    while (isdigit(l->src[l->i]) || l->src[l->i] == '_') // verfica se é alpha nbumerico e incrementa
-    {
-        l->i++;
-    }
-    int len = l->i - start; // calcula o tamanho
-    return make_token(TOKEN_NUMBER, l->src + start, len, l->line); // gera token
+    int start = l->i; // define start
+    while (isdigit((unsigned char)l->src[l->i])) // se for um digito (0-9)
+        l->i++; // aumenta
+    int len = l->i - start; // distancia entre o index e o começo de onde ele estava
+    return make_token(TOKEN_NUMBER, l->src + start, len, l->line); // gera o token
 }
 
 static Token read_string(Lexer *l) {
-    l->i++; // pula da aspas pro texto
-    int start = l->i; // salva o começo da string
-    while (l->src[l->i] != '"' && l->src[l->i] != '\0' ) // enquanto nao achar a aspas final e nao for o fim do arquivo
-    {       
-            if (l->src[l->i] == '\n') // ja aproveita e aumenta o contador de linha se tiver quebra
-            {
-                l->line++;
-            }
-            
-            l->i++; // aumenta onde a gente está no texto
+    l->i++; // pula aspas de abertura
+    int start = l->i; // começo
+    while (l->src[l->i] != '"' && l->src[l->i] != '\0') { // enquanto index nao for o  " e nao for o \0
+        if (l->src[l->i] == '\n') l->line++; // se achar newline aumenta o contador de line e dps aumenta o index
+        l->i++;
     }
-
     if (l->src[l->i] == '\0') {
-        fprintf(stderr, "Erro: a string nao foi fechada"); // error handle pa nois
+        fprintf(stderr, "Erro: string nao fechada na linha %d\n", l->line); // error handling
         exit(1);
     }
-
-    int len = l->i - start;
-    Token t = make_token(TOKEN_STRING, l->src + start, len, l->line);
-
-    l->i++;
-    return t;
+    int len = l->i - start; // distancia
+    Token t = make_token(TOKEN_STRING, l->src + start, len, l->line); // gera o token
+    l->i++; // pula aspas de fechamento
+    return t; // retorna  token
 }
 
 Token next_token(Lexer *l) {
-    skip_whitespace(l); // pula espaço em branco
-    char c = l->src[l->i]; // pega o primeiro character
-
-    if (c == '\0') { // se for o fim do arquivo
-        Token t = make_token(TOKEN_EOF, "EOF", 3, l->line);
-        printf("[LEXER] kind=%d val='%s'\n", t.kind, t.value);
-        return t;
+    // consome espaços e comentários (mas não newlines)
+    while (1) {
+        skip_whitespace(l); // skipa espaço
+        if (l->src[l->i] == ';') {
+            skip_comment(l); // eskipa comentario
+            continue;
+        }
+        break; // quebra dps
     }
 
-    if (c == '$') { // se for comentario
-        skip_comment(l); // pula o comentario e vai pro proximo token
-        return next_token(l);
+    char c = l->src[l->i]; // char é igual ao index q é um character provavelmente ou um numero sei la
+
+    if (c == '\0')  return make_token(TOKEN_EOF,     "EOF", 3, l->line); // se for o fim do arquivo enviar EOF
+    if (c == '\n') { // se for uma newline
+        l->i++; // aumenta o index
+        l->line++; // aumenta a line
+        return make_token(TOKEN_NEWLINE, "\n", 1, l->line); // gera token de newline
     }
 
-    Token t;
-    if(isalpha(c) || c == '_') t = read_ident(l);
-    else if(isdigit(c)) t = read_number(l);
-    else if(c == '"') t = read_string(l);
-    else switch (c) {
-        case '[': l->i++; t = make_token(TOKEN_LBRACKET, "[", 1, l->line); break;
-        case ']': l->i++; t = make_token(TOKEN_RBRACKET, "]", 1, l->line); break;
-        default: t = make_token(TOKEN_UNKNOW, &c, 1, l->line);
+    if (isalpha((unsigned char)c) || c == '_') return read_ident(l); // se for alphanumerico leia ident
+    if (isdigit((unsigned char)c))             return read_number(l); // se for numero leia numero
+    if (c == '"')                              return read_string(l); // se for string leia string
+
+    // operadores simbólicos
+    switch (c) {
+        case '-':
+            if (l->src[l->i + 1] == '>') { // se index o proximo index for > é uma arrow
+                l->i += 2; // pula 2 caracteres?
+                return make_token(TOKEN_ARROW, "->", 2, l->line); // gera token arrow
+            }
+            break;
+        case '{':
+            l->i++; // continua
+            return make_token(TOKEN_LBRACE, "{", 1, l->line);
+        case '}':
+            l->i++; // continua
+            return make_token(TOKEN_RBRACE, "}", 1, l->line);
     }
 
-    printf("[LEXER] kind=%d val='%s'\n", t.kind, t.value);
-    return t;
+    // caractere desconhecido
+    l->i++;
+    return make_token(TOKEN_UNKNOWN, &c, 1, l->line);
 }
-
-
-

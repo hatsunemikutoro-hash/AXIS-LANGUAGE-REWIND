@@ -2,74 +2,51 @@
 #define LEXER_H
 
 typedef enum {
-    //LITERAIS
+    // LITERAIS
     TOKEN_NUMBER,
     TOKEN_STRING,
-
-    // IDENTIFIER
     TOKEN_IDENT,
-    
-    // KEYWORDS DA ARITMETICA
-    TOKEN_INC,
-    TOKEN_DEC,
-    TOKEN_CLEAR,
-    TOKEN_ADD,
-    TOKEN_SUB,
 
-    // KEYWORDS - VARIAVEIS
-    TOKEN_LET,
-    TOKEN_VAR,
+    // KEYWORDS ESTRUTURAIS
+    TOKEN_FUNCTION,  // function
+    TOKEN_END,       // end / }
+    TOKEN_RETURN,    // return
 
     // FLUXO
-    TOKEN_MARK,
-    TOKEN_JUMP,
-    TOKEN_IF,
-    TOKEN_EQ,
-    TOKEN_LT,
-    TOKEN_GT,
+    TOKEN_IF,        // if
+    TOKEN_CALL,      // call
 
-    // KEYWORDS - I/O
-    TOKEN_READ,
-    TOKEN_PRINT,
+    // COMANDOS
+    TOKEN_STORE,     // store x 10
+    TOKEN_PRINT,     // print x
+    TOKEN_ADD,       // add a b -> result
+    TOKEN_SUB,       // sub a b -> result
+    TOKEN_MUL,       // mul a b -> result
+    TOKEN_DIV,       // div a b -> result
 
-    // KEYWORD - FUNCOES
-    TOKEN_DEF,
-    TOKEN_END,
-    TOKEN_CALL,
-    TOKEN_RETURN,
-
-    // KEYWORDS - MODULOS
-    TOKEN_LOAD,
-
-    // KEYWORDS - SYS
-    TOKEN_EXIT,
-    TOKEN_DEBUG,
-    TOKEN_NODEBUG,
-
-    // SIMBOLOS
-    TOKEN_LBRACKET,
-    TOKEN_RBRACKET,
+    // OPERADORES
+    TOKEN_ARROW,     // ->
+    TOKEN_LBRACE,    // {
+    TOKEN_RBRACE,    // }
 
     // CONTROLE
     TOKEN_NEWLINE,
     TOKEN_EOF,
-    TOKEN_UNKNOW,
-}Tokenkind;
+    TOKEN_UNKNOWN,
+} Tokenkind;
 
-typedef struct
-{
-    const char *src; // é pra ser a string inteira
-    int i; // a posicao atual o caractere
-    int line; // a linha atual
-}Lexer;
+typedef struct {
+    const char *src;
+    int i;
+    int line;
+    int indent; // nível de indentação atual
+} Lexer;
 
-typedef struct
-{
+typedef struct {
     Tokenkind kind;
     char *value;
     int line;
-}Token;
-
+} Token;
 
 Token next_token(Lexer *l);
 

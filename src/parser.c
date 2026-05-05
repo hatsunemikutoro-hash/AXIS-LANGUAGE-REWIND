@@ -1,277 +1,219 @@
 #define _POSIX_C_SOURCE 200809L
 #include "ast.h"
 #include "lexer.h"
-#include "parser.h" 
-#include <stdio.h> 
+#include "parser.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-// passei 30 minutos sem fazer nada so pensando como vou estruturar isso aqui
-// nunca me senti tao burro em toda minha vida
-// pqp.
+// ─── helpers ────────────────────────────────────────────────────────────────
 
-// a roda que move pra proximaparte
-void advance(Lexer *l, Token *current_token) {
-    *current_token = next_token(l);
+static void advance(Lexer *l, Token *cur) {
+    *cur = next_token(l);
 }
 
-void eat(Lexer *l, Token *current_token, Tokenkind expected_kind) {
-    if (current_token->kind == expected_kind) // se token atual é igual ao token que era esperado
-    // avançar senão o programa para e dá erro
-    {
-        advance(l, current_token);
-    } else {
-        fprintf(stderr, "Erro, esperado token %d veio %d", expected_kind, current_token->kind);
+static void skip_newlines(Lexer *l, Token *cur) {
+    while (cur->kind == TOKEN_NEWLINE)
+        advance(l, cur);
+}
+
+static void eat(Lexer *l, Token *cur, Tokenkind expected) {
+    if (cur->kind != expected) {
+        fprintf(stderr, "Erro na linha %d: esperado token %d, veio %d ('%s')\n",
+                cur->line, expected, cur->kind, cur->value ? cur->value : "?");
         exit(1);
     }
-    
+    advance(l, cur);
 }
 
-ASTNode* parse_factor(Lexer *l, Token *current_token) { // Verifica se é numero ou variavel
-    ASTNode* node = NULL;
+// ─── átomos ─────────────────────────────────────────────────────────────────
 
-    if (current_token->kind == TOKEN_NUMBER) // se a kind for igual ao token numero cria um node do tipo number
-    {
+// Lê um IDENT, NUMBER ou STRING e retorna o node
+static ASTNode* parse_atom(Lexer *l, Token *cur) {
+    ASTNode *node = NULL;
+    if (cur->kind == TOKEN_NUMBER) {
         node = create_node(NODE_NUMBER);
-        node->data.number_val = atof(current_token->value);
-        eat(l, current_token, TOKEN_NUMBER);
-    } else if (current_token->kind == TOKEN_IDENT)
-    {
-        node = create_node(NODE_IDENT); // o mesmo so que pra variavel
-        node->data.string_val = strdup(current_token->value);
-        eat(l, current_token, TOKEN_IDENT);
+        node->number = strtoull(cur->value, NULL, 10);
+        eat(l, cur, TOKEN_NUMBER);
+    } else if (cur->kind == TOKEN_IDENT) {
+        node = create_node(NODE_IDENT);
+        node->value = strdup(cur->value);
+        eat(l, cur, TOKEN_IDENT);
+    } else if (cur->kind == TOKEN_STRING) {
+        node = create_node(NODE_STRING);
+        node->value = strdup(cur->value);
+        eat(l, cur, TOKEN_STRING);
     } else {
-        fprintf(stderr, "Esperado variavel ou numero mas veio %d\n", current_token->kind);
+        fprintf(stderr, "Erro na linha %d: esperado valor, veio '%s'\n",
+                cur->line, cur->value ? cur->value : "?");
         exit(1);
     }
     return node;
 }
 
-ASTNode* parse_expression(Lexer *l, Token *current_token) {
-    ASTNode *left = parse_factor(l, current_token); // pega o primeiro numero ou variavel
+// ─── statements ─────────────────────────────────────────────────────────────
 
-    while (current_token->kind == TOKEN_ADD || current_token->kind == TOKEN_SUB) // enquanto for um sinal de + ou -
-    {
-        Token op = *current_token; // salva o sinal
-        advance(l, current_token); // vai pro proximo
-    
+static ASTNode* parse_block(Lexer *l, Token *cur);
 
-    ASTNode* newNode = create_node(NODE_ARITHMETIC); // cria um novo node
-    newNode->kind = NODE_ARITHMETIC; // agora o tipo desse node é ARITIMETICAAA
-    newNode->op_kind = op.kind; // a kind desse node é o mesmo que a kind do operator
-    newNode->left = left; // a esquerda desse newnode vira a esquerda 
-    newNode->right = parse_factor(l, current_token); // e avança pra pegar a direita
-    
-    left = newNode;
+// store x 10
+static ASTNode* parse_store(Lexer *l, Token *cur) {
+    ASTNode *node = create_node(NODE_STORE);
+    eat(l, cur, TOKEN_STORE);
+    node->left  = parse_atom(l, cur); // nome da variável
+    node->right = parse_atom(l, cur); // valor
+    return node;
+}
+
+// print x
+static ASTNode* parse_print(Lexer *l, Token *cur) {
+    ASTNode *node = create_node(NODE_PRINT);
+    eat(l, cur, TOKEN_PRINT);
+    node->left = parse_atom(l, cur);
+    return node;
+}
+
+// return valor
+static ASTNode* parse_return(Lexer *l, Token *cur) {
+    ASTNode *node = create_node(NODE_RETURN);
+    eat(l, cur, TOKEN_RETURN);
+    node->left = parse_atom(l, cur);
+    return node;
+}
+
+// add a b -> result   (vale também pra sub, mul, div)
+static ASTNode* parse_arith(Lexer *l, Token *cur) {
+    ASTNode *node = create_node(NODE_ARITH);
+    node->value = strdup(cur->value); // "add", "sub", "mul", "div"
+    advance(l, cur); // consome o token do operador
+
+    node->left  = parse_atom(l, cur); // operando esquerdo
+    node->right = parse_atom(l, cur); // operando direito
+
+    // -> destino  (opcional: nem todo arith precisa de destino)
+    if (cur->kind == TOKEN_ARROW) {
+        eat(l, cur, TOKEN_ARROW);
+        add_child(node, parse_atom(l, cur)); // destino em children[0]
+    }
+    return node;
+}
+
+// call soma x y -> z
+static ASTNode* parse_call(Lexer *l, Token *cur) {
+    ASTNode *node = create_node(NODE_CALL);
+    eat(l, cur, TOKEN_CALL);
+
+    node->left = parse_atom(l, cur); // nome da função
+
+    // argumentos: qualquer IDENT ou NUMBER que não seja ->
+    while (cur->kind == TOKEN_IDENT || cur->kind == TOKEN_NUMBER) {
+        add_child(node, parse_atom(l, cur));
     }
 
-    return left;
-}
-
-// a esse ponto eu ja estou insano se nao fosse a ia me explicar tudo igual se eu fosse um jumento :D
-
-// TODO FUNCAO PARA CADA UM
-ASTNode* parse_print(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_PRINT);
-    eat(l, current_token, TOKEN_PRINT);
-    node->right = parse_factor(l, current_token);
-    return node;
-}
-
-ASTNode* parse_var(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_VAR_DECL);
-    eat(l, current_token, TOKEN_VAR);
-    node->left = parse_factor(l, current_token);
-    if (current_token->kind == TOKEN_NUMBER || current_token->kind == TOKEN_IDENT) {
-        node->right = parse_factor(l, current_token);
+    // -> destino (opcional)
+    if (cur->kind == TOKEN_ARROW) {
+        eat(l, cur, TOKEN_ARROW);
+        node->right = parse_atom(l, cur);
     }
     return node;
 }
 
-ASTNode* parse_exit(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_EXIT);
-    eat(l, current_token, TOKEN_EXIT);
+// if cond
+//     bloco indentado
+// end
+static ASTNode* parse_if(Lexer *l, Token *cur) {
+    ASTNode *node = create_node(NODE_IF);
+    eat(l, cur, TOKEN_IF);
+
+    node->left = parse_atom(l, cur); // condição
+
+    eat(l, cur, TOKEN_NEWLINE);
+
+    node->right = parse_block(l, cur); // bloco indentado
+
+    skip_newlines(l, cur);
+    eat(l, cur, TOKEN_END); // consome o "end"
     return node;
 }
 
-ASTNode* parse_add(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_ARITHMETIC);
-        
-    eat(l, current_token, TOKEN_ADD);
+// function soma a b {
+//     corpo
+// }
+static ASTNode* parse_func_def(Lexer *l, Token *cur) {
+    ASTNode *node = create_node(NODE_FUNC_DEF);
+    eat(l, cur, TOKEN_FUNCTION);
 
-    node->left = parse_factor(l, current_token); // ele vai adicionar como 1 argumento
-    node->op_kind = TOKEN_ADD; // !!!!!! TEM QUE MUDAR O OP KIND!!!!!
-    if (current_token->kind == TOKEN_NUMBER || current_token->kind == TOKEN_IDENT) {
-        node->right = parse_factor(l, current_token); // adiciona como segundo 10
+    node->left = parse_atom(l, cur); // nome da função
+
+    // parâmetros: idents até o {
+    while (cur->kind == TOKEN_IDENT) {
+        add_child(node, parse_atom(l, cur));
     }
 
+    eat(l, cur, TOKEN_LBRACE);
+    eat(l, cur, TOKEN_NEWLINE);
+
+    node->right = parse_block(l, cur); // corpo
+
+    skip_newlines(l, cur);
+    eat(l, cur, TOKEN_RBRACE); // consome o }
     return node;
 }
 
-ASTNode* parse_sub(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_ARITHMETIC);
-        
-    eat(l, current_token, TOKEN_SUB);
+// ─── bloco ──────────────────────────────────────────────────────────────────
 
-    node->left = parse_factor(l, current_token); // ele vai adicionar como 1 argumento
-    node->op_kind = TOKEN_SUB; // !!!!!! TEM QUE MUDAR O OP KIND!!!!!
-    if (current_token->kind == TOKEN_NUMBER || current_token->kind == TOKEN_IDENT) {
-        node->right = parse_factor(l, current_token); // adiciona como segundo 10
+// Lê statements até encontrar END, } ou EOF (não consome o terminador)
+static ASTNode* parse_block(Lexer *l, Token *cur) {
+    ASTNode *block = create_node(NODE_BLOCK);
+
+    while (1) {
+        skip_newlines(l, cur);
+
+        // terminadores de bloco
+        if (cur->kind == TOKEN_EOF  ||
+            cur->kind == TOKEN_END  ||
+            cur->kind == TOKEN_RBRACE) {
+            break;
+        }
+
+        ASTNode *stmt = NULL;
+
+        switch (cur->kind) {
+            case TOKEN_STORE:    stmt = parse_store(l, cur);    break;
+            case TOKEN_PRINT:    stmt = parse_print(l, cur);    break;
+            case TOKEN_RETURN:   stmt = parse_return(l, cur);   break;
+            case TOKEN_ADD:
+            case TOKEN_SUB:
+            case TOKEN_MUL:
+            case TOKEN_DIV:      stmt = parse_arith(l, cur);    break;
+            case TOKEN_CALL:     stmt = parse_call(l, cur);     break;
+            case TOKEN_IF:       stmt = parse_if(l, cur);       break;
+            case TOKEN_FUNCTION: stmt = parse_func_def(l, cur); break;
+            default:
+                fprintf(stderr, "Erro na linha %d: statement inesperado '%s'\n",
+                        cur->line, cur->value ? cur->value : "?");
+                exit(1);
+        }
+
+        add_child(block, stmt);
     }
 
-    return node;
+    return block;
 }
 
-ASTNode* parse_inc(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_INC);
-    eat(l, current_token, TOKEN_INC);
-    node->left = parse_factor(l, current_token);
-    return node;
-}
-
-ASTNode* parse_dec(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_DEC);
-    eat(l, current_token, TOKEN_DEC);
-    node->left = parse_factor(l, current_token);
-    return node;
-}
-
-ASTNode* parse_debug(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_DEBUG);
-    eat(l, current_token, TOKEN_DEBUG);
-    return node;
-}
-
-ASTNode* parse_nodebug(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_NODEBUG);
-    eat(l, current_token, TOKEN_NODEBUG);
-    return node;
-}
-
-ASTNode* parse_mark(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_MARK);
-    eat(l, current_token, TOKEN_MARK);
-    node->left = parse_factor(l, current_token);
-    return node;
-}
-
-ASTNode* parse_jump(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_JUMP);
-    eat(l, current_token, TOKEN_JUMP);
-    node->left = parse_factor(l, current_token);
-    return node;
-}
-
-ASTNode* parse_if(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_IF);
-    eat(l, current_token, TOKEN_IF);
-    node->left = parse_factor(l, current_token);
-    node->right = parse_factor(l, current_token);
-    return node;
-}
-
-ASTNode* parse_eq(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_EQ);
-    eat(l, current_token, TOKEN_EQ);
-    node->left = parse_factor(l, current_token);
-    node->right = parse_factor(l, current_token);
-    return node;
-}
-
-ASTNode* parse_lt(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_LT);
-    eat(l, current_token, TOKEN_LT);
-    node->left = parse_factor(l, current_token);
-    node->right = parse_factor(l, current_token);
-    return node;
-}
-
-ASTNode* parse_gt(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_GT);
-    eat(l, current_token, TOKEN_GT);
-    node->left = parse_factor(l, current_token);
-    node->right = parse_factor(l, current_token);
-    return node;
-}
-
-ASTNode* parse_read(Lexer *l, Token *current_token) {
-    ASTNode* node = create_node(NODE_READ);
-    eat(l, current_token, TOKEN_READ);
-    node->left = parse_factor(l, current_token); // variavel onde guarda o input
-    return node;
-}
-
-
-// parse statement LETS FUCKING GO BITCHES
-
-ASTNode* parse_statement(Lexer *l, Token *current_token) {
-    printf("[DEBUG] TOKEN_PRINT vale: %d\n", TOKEN_PRINT);
-    printf("[DEBUG] current kind vale: %d\n", current_token->kind);
-    /*===== OS BASICOS =====*/
-
-    if      (current_token->kind == TOKEN_PRINT) return parse_print(l, current_token);
-    else if (current_token->kind == TOKEN_VAR)   return parse_var(l, current_token);
-    else if (current_token->kind == TOKEN_EXIT)   return parse_exit(l, current_token);
-
-
-    /*===== OPERACOES ARITMETICA =====*/
-    else if (current_token->kind == TOKEN_ADD)   return parse_add(l, current_token);
-    else if (current_token->kind == TOKEN_SUB)   return parse_sub(l, current_token);
-
-    else if (current_token->kind == TOKEN_INC)   return parse_inc(l, current_token);
-
-    else if (current_token->kind == TOKEN_DEC)   return parse_dec(l, current_token);
-
-    // ===== system =====
-    else if (current_token->kind == TOKEN_DEBUG) return parse_debug(l, current_token);
-
-    else if (current_token->kind == TOKEN_NODEBUG) return parse_nodebug(l, current_token);
-
-    // LABELS
-    else if (current_token->kind == TOKEN_MARK) return parse_mark(l, current_token);
-
-    else if (current_token->kind == TOKEN_JUMP) return parse_jump(l, current_token);
-
-    // CONDITIONS
-    else if (current_token->kind == TOKEN_IF) return parse_if(l, current_token);
-    
-    else if (current_token->kind == TOKEN_EQ) return parse_eq(l, current_token);
-
-    else if (current_token->kind == TOKEN_LT) return parse_lt(l, current_token);
-
-    else if (current_token->kind == TOKEN_GT) return parse_gt(l, current_token);
-
-    // I/O
-
-    else if (current_token->kind == TOKEN_READ) return parse_read(l, current_token);
-        
-    // ! tem mais pra fazer so que eu vou deixar pra depois
-    // ! por limitações que eu to sem saco pra fazer
-    // ! por agora vamos dar esse erro so por finalidades de debug
-    fprintf(stderr, "Comando nao reconhecido no parse statement\n");
-    exit(1);
-}
-
-// Deus é pai todo poderoso criador dos ceus e da terra me ajude neste momento
+// ─── entrada ────────────────────────────────────────────────────────────────
 
 ASTNode* parse_program(Lexer *l) {
-    Token current;
-    advance(l, &current); // pega o primeiro token pra dar tranco no carro
+    Token cur;
+    advance(l, &cur);
 
+    ASTNode *root = parse_block(l, &cur);
+    root->kind = NODE_PROGRAM;
 
-    ASTNode* root = create_node(NODE_PROGRAM); // ja cria as nossas raizes da arovore abstrata
-    ASTNode* current_pos = root;
-
-    while (current.kind != TOKEN_EOF) // enquanto nao for o fim do arquivo contnua rodando
-    {
-        current_pos->left = parse_statement(l, &current); // deixa o comando atual pra esquerda
-
-        if (current.kind != TOKEN_EOF) // se ainda n for o fim do arquivo cria outro nó pra continuar
-        {
-            current_pos->right = create_node(NODE_PROGRAM);
-            current_pos = current_pos->right;
-        }
-        
+    if (cur.kind != TOKEN_EOF) {
+        fprintf(stderr, "Erro na linha %d: token inesperado no fim '%s'\n",
+                cur.line, cur.value ? cur.value : "?");
+        exit(1);
     }
+
     return root;
 }

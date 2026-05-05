@@ -1,23 +1,36 @@
+// main.c
+#include <stdio.h>
+#include <stdlib.h>
 #include "lexer.h"
 #include "parser.h"
 #include "ast.h"
-#include <stdio.h>
-#include <stdlib.h>
+#include "interpreter.h"
 
-int main() {
-    const char *codigo_teste = "ADD X 10";
+int main(int argc, char *argv[]) {
+    if (argc < 2) {
+        fprintf(stderr, "Uso: ./axis arquivo.ext\n");
+        return 1;
+    } // verifica se temos o primeiro argumento
 
-    Lexer l;
-    l.src = codigo_teste;
-    l.line = 1;
-    l.i = 0;
+    // lê o arquivo inteiro pra uma string
+    FILE *f = fopen(argv[1], "r");
+    if (!f) { perror("Erro ao abrir arquivo"); return 1; } // pega o file do primeiro argumento
 
-    printf("--- TESTANDO ESTA BOSTA 2.0 ---\n");
-    printf("Input: %s\n\n", codigo_teste);
+    fseek(f, 0, SEEK_END); // vai até o começo do arquivo
+    long size = ftell(f); // retorna a posicao atual
+    rewind(f);  // define a posicao do arquivo para o inicio
 
-    ASTNode* root = parse_program(&l);
-    printf(">>> AST construída com sucesso!\n");
-    debug_print_ast(root, 0); // debug
-    printf("\n--- EXECUÇÃO FINALIZADA ---\n");
+    char *src = malloc(size + 1); // alocamos memoria para a src q sera usada pelo lexer
+    fread(src, 1, size, f); // le os dados do arquivo
+    src[size] = '\0'; // no final adiciona o null term
+    fclose(f); // fecha o arquivo
+
+    // pipeline completo
+    Lexer   l   = { .src = src, .i = 0, .line = 1 };
+    ASTNode *ast = parse_program(&l);
+    interpret(ast);
+
+    free_ast(ast);
+    free(src);
     return 0;
 }

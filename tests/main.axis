@@ -1,0 +1,9 @@
+function soma a b {
+    add a b -> result
+    return result
+}
+
+store x 10
+store y 20
+call soma x y -> z
+print z

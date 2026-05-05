@@ -8,10 +8,9 @@ TEST_DIR = tests
 OBJ_DIR = obj
 
 # Arquivos
-# Listamos os arquivos fonte de src e o main de tests
-SRCS = $(SRC_DIR)/ast.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c
+SRCS = $(SRC_DIR)/ast.c $(SRC_DIR)/lexer.c $(SRC_DIR)/parser.c $(SRC_DIR)/interpreter.c
 MAIN = $(TEST_DIR)/main.c
-OBJS = $(OBJ_DIR)/ast.o $(OBJ_DIR)/lexer.o $(OBJ_DIR)/parser.o $(OBJ_DIR)/main.o
+OBJS = $(OBJ_DIR)/ast.o $(OBJ_DIR)/lexer.o $(OBJ_DIR)/parser.o $(OBJ_DIR)/interpreter.o $(OBJ_DIR)/main.o
 
 # Nome do executável final
 TARGET = axis_run
